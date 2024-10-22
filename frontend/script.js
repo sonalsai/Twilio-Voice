@@ -1,4 +1,5 @@
 let deviceReady = false;
+let ngrok = "https://2c80-106-222-237-223.ngrok-free.app"
 
 // Function to set up Twilio client
 function setupTwilioDevice(token) {
@@ -19,7 +20,7 @@ function setupTwilioDevice(token) {
 }
 
 // Fetch token from the server and initialize the Twilio client
-fetch('https://b477-106-222-237-223.ngrok-free.app/token')
+fetch(`${ngrok}/token`)
     .then(response => response.json())
     .then(data => {
         setupTwilioDevice(data.token);
@@ -39,7 +40,7 @@ function makeCall() {
     // Pass the phone number to Twilio
     const params = { number: phoneNumber };
 
-    fetch('https://b477-106-222-237-223.ngrok-free.app/getNum', {
+    fetch(`${ngrok}/getNum`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

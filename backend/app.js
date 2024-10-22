@@ -64,10 +64,6 @@ app.post('/makeCall', (req, res) => {
 
     res.type('text/xml');
     res.send(twiml.toString());
-
-
-    res.type('text/xml');
-    res.send(twiml.toString());
 });
 
 
