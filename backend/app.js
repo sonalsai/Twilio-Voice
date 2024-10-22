@@ -42,21 +42,34 @@ app.post('/getNum', (req, res) => {
 
 // Endpoint to handle the outgoing call
 app.post('/makeCall', (req, res) => {
-    // const { to } = req.body;
-    const to = phoneNumber
+    const to = phoneNumber;
 
     if (!to) {
         return res.status(400).send('Phone number is required.');
     }
 
+    // Create a TwiML response
     const twiml = new twilio.twiml.VoiceResponse();
-    twiml.dial({
-        callerId: twilioPhoneNumber,  // This is your Twilio number
-    }, to);  // 'to' is the number you're calling
+
+    // Start streaming audio to a WebSocket
+    const start = twiml.start();
+    start.stream({
+        url: 'wss://api.aiscribe.quipohealth.com/ws', // WebSocket URL where the audio stream will be sent
+        name: 'Call Audio Stream', // Optional: Name of the stream
+        track: 'both' // Optional: Stream direction (inbound, outbound, or both)
+    });
+
+    // Dial the phone number
+    twiml.dial({ callerId: twilioPhoneNumber }, to);
+
+    res.type('text/xml');
+    res.send(twiml.toString());
+
 
     res.type('text/xml');
     res.send(twiml.toString());
 });
+
 
 
 // Server listening
