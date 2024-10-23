@@ -4,7 +4,8 @@
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon app.js"
+    "start": "nodemon app.js",
+    "websocket": "nodemon websocket.js"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +22,7 @@
     "nodemon": "^3.1.7",
     "twilio": "^5.3.4",
     "uuid": "^10.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "wscat": "^6.0.1"
   }
 }

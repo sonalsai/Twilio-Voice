@@ -1,12 +1,11 @@
-require('dotenv').config()
+require('dotenv').config();
 const express = require('express');
 const twilio = require('twilio');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 
 const app = express();
-
-let phoneNumber
+let phoneNumber;
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -36,9 +35,9 @@ app.get('/token', (req, res) => {
 
 app.post('/getNum', (req, res) => {
     const { number } = req.body;
-    phoneNumber = number
-    res.send({ staus: "Ok" })
-})
+    phoneNumber = number;
+    res.send({ status: "Ok" });
+});
 
 // Endpoint to handle the outgoing call
 app.post('/makeCall', (req, res) => {
@@ -51,22 +50,24 @@ app.post('/makeCall', (req, res) => {
     // Create a TwiML response
     const twiml = new twilio.twiml.VoiceResponse();
 
-    // Start streaming audio to a WebSocket
+    // Start streaming audio to the WebSocket
     const start = twiml.start();
     start.stream({
-        url: 'wss://api.aiscribe.quipohealth.com/ws', // WebSocket URL where the audio stream will be sent
+        url: "wss://6506-106-222-237-223.ngrok-free.app", // WebSocket URL where the audio stream will be sent
         name: 'Call Audio Stream', // Optional: Name of the stream
-        track: 'both' // Optional: Stream direction (inbound, outbound, or both)
+        track: 'both' // Stream both inbound and outbound audio
     });
 
     // Dial the phone number
     twiml.dial({ callerId: twilioPhoneNumber }, to);
 
+    // Log TwiML and response to check correctness
+    console.log('Generated TwiML:', twiml.toString());
+
+    // Send the generated TwiML as the response
     res.type('text/xml');
     res.send(twiml.toString());
 });
-
-
 
 // Server listening
 const port = 3000;
