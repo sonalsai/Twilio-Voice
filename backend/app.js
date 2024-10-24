@@ -53,7 +53,7 @@ app.post('/makeCall', (req, res) => {
     // Start streaming audio to the WebSocket
     const start = twiml.start();
     start.stream({
-        url: "wss://7a50-202-88-244-71.ngrok-free.app", // WebSocket URL where the audio stream will be sent
+        url: "wss://ea81-2401-4900-1cdc-7b5f-7089-c2e5-6550-45df.ngrok-free.app", // WebSocket URL where the audio stream will be sent
         name: 'Call Audio Stream', // Optional: Name of the stream
         track: 'both_tracks' // Stream both inbound and outbound audio
     });

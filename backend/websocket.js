@@ -1,94 +1,134 @@
 require('dotenv').config();
 const WebSocket = require('ws');
-const { spawn } = require('child_process');
+const axios = require('axios');
 const Buffer = require('buffer').Buffer;
 
+// Configuration constants
+const CONFIG = {
+    PORT: 8080,
+    SAMPLE_RATE: 8000,
+    ENCODING: 'mulaw',  // Changed to mulaw for Twilio's PCMU format
+    CHANNELS: 1
+};
+
 // WebSocket server to handle PCM audio stream from Twilio
-const wss = new WebSocket.Server({ port: 8080 });
+const wss = new WebSocket.Server({ port: CONFIG.PORT });
+
+// Deepgram WebSocket URL with correct encoding parameters for PCMU
+const deepgramSocketUrl = `wss://api.deepgram.com/v1/listen?encoding=${CONFIG.ENCODING}&sample_rate=${CONFIG.SAMPLE_RATE}&channels=${CONFIG.CHANNELS}`;
+const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
 
 wss.on('connection', (ws) => {
     console.log('Received connection from Twilio');
 
-    // Setup FFmpeg to convert PCMU (G.711 µ-law) to WebM Opus
-    const ffmpegProcess = spawn('ffmpeg', [
-        '-loglevel', 'error',  // Log only errors
-        '-f', 'mulaw',         // Input format: PCMU (µ-law)
-        '-ar', '8000',         // Sampling rate: 8000 Hz (for PCMU)
-        '-ac', '1',            // Audio channels: mono
-        '-i', '-',             // Input from stdin (Twilio's WebSocket stream)
-        '-c:a', 'libopus',     // Encode to Opus codec
-        '-f', 'webm',          // Output format: WebM
-        '-content_type', 'audio/webm',
-        'pipe:1'               // Output to stdout (WebSocket to transcribe socket)
-    ]);
-
-    // Capture FFmpeg error output
-    ffmpegProcess.stderr.on('data', (data) => {
-        console.error(`FFmpeg Error: ${data.toString()}`);
+    // Set up a WebSocket connection to Deepgram's streaming API
+    const targetWs = new WebSocket(deepgramSocketUrl, {
+        headers: {
+            Authorization: `Token ${deepgramApiKey}`,
+        },
     });
 
-    // Capture FFmpeg exit events
-    ffmpegProcess.on('exit', (code, signal) => {
-        console.error(`FFmpeg process exited with code ${code} and signal ${signal}`);
-    });
-
-    // Forward the converted WebM Opus stream to the transcribe socket WebSocket
-    const targetWs = new WebSocket(process.env.WS_URL);
+    // Track connection state
+    let isDeepgramConnected = false;
 
     targetWs.on('open', () => {
-        console.log('Connected to transcribe socket WebSocket');
-
-        // Send WebM Opus data from FFmpeg to transcribe socket
-        ffmpegProcess.stdout.on('data', (chunk) => {
-            targetWs.send(chunk);
-        });
-
-        // Handle incoming PCMU data from Twilio
-        ws.on('message', (message) => {
-            const data = JSON.parse(message.toString());
-            if (data.event === 'media' && data.media && data.media.payload) {
-                const pcmuBuffer = Buffer.from(data.media.payload, 'base64'); // Decode base64-encoded PCMU payload
-                ffmpegProcess.stdin.write(pcmuBuffer); // Send PCMU data to FFmpeg
-            }
-        });
-
-        ws.on('close', () => {
-            console.log('Twilio WebSocket closed');
-            ffmpegProcess.stdin.end();
-            targetWs.close();
-        });
-
-        ws.on('error', (err) => {
-            console.error('Error in Twilio WebSocket:', err);
-            ffmpegProcess.stdin.end();
-            targetWs.close();
-        });
+        console.log('Connected to Deepgram WebSocket for transcription');
+        isDeepgramConnected = true;
     });
 
-    targetWs.on('message', (message) => {
-        if (Buffer.isBuffer(message)) {
-            // Convert buffer to string
-            const transcription = message.toString('utf8');
-            console.log("Transcription text >> ", transcription);
-        } else {
-            console.log("Non-buffer message received:", message);
+    // Handle incoming PCMU data from Twilio
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message.toString());
+
+            // Only process media events with payload
+            if (data.event === 'media' && data.media?.payload) {
+                // Decode base64-encoded PCMU payload
+                const pcmuBuffer = Buffer.from(data.media.payload, 'base64');
+
+                // Only send if Deepgram connection is open
+                if (isDeepgramConnected && targetWs.readyState === WebSocket.OPEN) {
+                    targetWs.send(pcmuBuffer);
+                }
+            }
+        } catch (error) {
+            console.error('Error processing Twilio message:', error);
         }
     });
 
+    // Handle Twilio WebSocket events
+    ws.on('close', () => {
+        console.log('Twilio WebSocket closed');
+        if (targetWs.readyState === WebSocket.OPEN) {
+            targetWs.close();
+        }
+    });
+
+    ws.on('error', (err) => {
+        console.error('Error in Twilio WebSocket:', err);
+        if (targetWs.readyState === WebSocket.OPEN) {
+            targetWs.close();
+        }
+    });
+
+    // Handle Deepgram WebSocket events
+    targetWs.on('message', (message) => {
+        try {
+            // Check if message is a Buffer and convert it to string if necessary
+            const messageStr = Buffer.isBuffer(message) ? message.toString('utf8') : message;
+
+            // Parse the message string into JSON
+            const transcriptionData = JSON.parse(messageStr);
+
+            if (transcriptionData && transcriptionData.channel && transcriptionData.channel.alternatives) {
+                const transcription = transcriptionData.channel.alternatives[0].transcript;
+                if (transcription) {
+                    console.log("Transcription text >> ", transcription);
+
+                }
+            }
+        } catch (error) {
+            console.error("Error processing Deepgram response:", error);
+        }
+    });
+
+
     targetWs.on('error', (err) => {
-        console.error('Error connecting to transcribe socket WebSocket:', err);
-        ws.close();
+        console.error('Error connecting to Deepgram WebSocket:', err);
+        isDeepgramConnected = false;
+
+        if (err.message.includes('401')) {
+            console.error(`
+Authentication Error: Please check your Deepgram API key:
+1. Verify the key in your .env file
+2. Ensure the key hasn't expired
+3. Check if the key has the necessary permissions
+            `);
+        }
+
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        }
     });
 
-    targetWs.on('close', () => {
-        console.log('transcribe socket WebSocket closed');
-        ws.close();
-    });
+    targetWs.on('close', (code, reason) => {
+        console.log(`Deepgram WebSocket closed with code ${code}${reason ? `: ${reason}` : ''}`);
+        isDeepgramConnected = false;
 
-    ffmpegProcess.on('error', (err) => {
-        console.error('Failed to start FFmpeg process:', err);
-        ws.close();
+        if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+        }
     });
 });
 
-console.log('WebSocket server listening on ws://localhost:8080');
+// Handle server startup
+console.log(`WebSocket server listening on ws://localhost:${CONFIG.PORT}`);
+
+// Handle process termination
+process.on('SIGTERM', () => {
+    console.log('Received SIGTERM. Closing WebSocket server...');
+    wss.close(() => {
+        console.log('Server closed. Exiting...');
+        process.exit(0);
+    });
+});
