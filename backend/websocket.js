@@ -19,7 +19,7 @@ wss.on('connection', (ws) => {
         '-c:a', 'libopus',     // Encode to Opus codec
         '-f', 'webm',          // Output format: WebM
         '-content_type', 'audio/webm',
-        'pipe:1'               // Output to stdout (WebSocket to aiscribe)
+        'pipe:1'               // Output to stdout (WebSocket to transcribe socket)
     ]);
 
     // Capture FFmpeg error output
@@ -32,13 +32,13 @@ wss.on('connection', (ws) => {
         console.error(`FFmpeg process exited with code ${code} and signal ${signal}`);
     });
 
-    // Forward the converted WebM Opus stream to the aiscribe WebSocket
+    // Forward the converted WebM Opus stream to the transcribe socket WebSocket
     const targetWs = new WebSocket(process.env.WS_URL);
 
     targetWs.on('open', () => {
-        console.log('Connected to aiscribe WebSocket');
+        console.log('Connected to transcribe socket WebSocket');
 
-        // Send WebM Opus data from FFmpeg to aiscribe
+        // Send WebM Opus data from FFmpeg to transcribe socket
         ffmpegProcess.stdout.on('data', (chunk) => {
             targetWs.send(chunk);
         });
@@ -76,12 +76,12 @@ wss.on('connection', (ws) => {
     });
 
     targetWs.on('error', (err) => {
-        console.error('Error connecting to aiscribe WebSocket:', err);
+        console.error('Error connecting to transcribe socket WebSocket:', err);
         ws.close();
     });
 
     targetWs.on('close', () => {
-        console.log('aiscribe WebSocket closed');
+        console.log('transcribe socket WebSocket closed');
         ws.close();
     });
 
