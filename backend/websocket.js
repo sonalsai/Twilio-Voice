@@ -1,3 +1,4 @@
+require('dotenv').config()
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
 
