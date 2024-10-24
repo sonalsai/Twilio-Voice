@@ -31,7 +31,7 @@ wss.on('connection', (ws) => {
     });
 
     // Forward the converted WebM Opus stream to the aiscribe WebSocket
-    const targetWs = new WebSocket('wss://api.aiscribe.quipohealth.com/ws');
+    const targetWs = new WebSocket(process.env.WS_URL);
 
     // Handle connection to aiscribe WebSocket
     targetWs.on('open', () => {

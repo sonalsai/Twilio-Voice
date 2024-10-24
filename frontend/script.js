@@ -1,5 +1,5 @@
 let deviceReady = false;
-let ngrok = "https://e678-106-222-237-223.ngrok-free.app";
+let ngrok = "https://d241-202-88-244-71.ngrok-free.app";
 let currentConnection = null; // To track the active connection
 
 // Function to set up Twilio client
