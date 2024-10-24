@@ -1,6 +1,7 @@
-require('dotenv').config()
+require('dotenv').config();
 const WebSocket = require('ws');
 const { spawn } = require('child_process');
+const Buffer = require('buffer').Buffer;
 
 // WebSocket server to handle PCM audio stream from Twilio
 const wss = new WebSocket.Server({ port: 8080 });
@@ -10,12 +11,12 @@ wss.on('connection', (ws) => {
 
     // Setup FFmpeg to convert PCMU (G.711 µ-law) to WebM Opus
     const ffmpegProcess = spawn('ffmpeg', [
-        '-loglevel', 'error',  // Log only errors (can change to 'info' for more details)
+        '-loglevel', 'error',  // Log only errors
         '-f', 'mulaw',         // Input format: PCMU (µ-law)
-        '-ar', '8000',         // Sampling rate: 8000 Hz (typical for PCMU)
+        '-ar', '8000',         // Sampling rate: 8000 Hz (for PCMU)
         '-ac', '1',            // Audio channels: mono
         '-i', '-',             // Input from stdin (Twilio's WebSocket stream)
-        '-c:a', 'libopus',     // Encode to Opus audio codec
+        '-c:a', 'libopus',     // Encode to Opus codec
         '-f', 'webm',          // Output format: WebM
         '-content_type', 'audio/webm',
         'pipe:1'               // Output to stdout (WebSocket to aiscribe)
@@ -34,30 +35,29 @@ wss.on('connection', (ws) => {
     // Forward the converted WebM Opus stream to the aiscribe WebSocket
     const targetWs = new WebSocket(process.env.WS_URL);
 
-    // Handle connection to aiscribe WebSocket
     targetWs.on('open', () => {
         console.log('Connected to aiscribe WebSocket');
 
         // Send WebM Opus data from FFmpeg to aiscribe
         ffmpegProcess.stdout.on('data', (chunk) => {
             targetWs.send(chunk);
-            console.log("Chunk sended")
         });
 
-        // Receive PCM (PCMU) audio data from Twilio and forward to FFmpeg
+        // Handle incoming PCMU data from Twilio
         ws.on('message', (message) => {
-            // console.log('Received PCM data from Twilio, forwarding to FFmpeg');
-            ffmpegProcess.stdin.write(message);
+            const data = JSON.parse(message.toString());
+            if (data.event === 'media' && data.media && data.media.payload) {
+                const pcmuBuffer = Buffer.from(data.media.payload, 'base64'); // Decode base64-encoded PCMU payload
+                ffmpegProcess.stdin.write(pcmuBuffer); // Send PCMU data to FFmpeg
+            }
         });
 
-        // Handle WebSocket close event
         ws.on('close', () => {
             console.log('Twilio WebSocket closed');
-            ffmpegProcess.stdin.end();  // Close FFmpeg process input
-            targetWs.close();           // Close target WebSocket
+            ffmpegProcess.stdin.end();
+            targetWs.close();
         });
 
-        // Handle WebSocket errors (Twilio)
         ws.on('error', (err) => {
             console.error('Error in Twilio WebSocket:', err);
             ffmpegProcess.stdin.end();
@@ -66,25 +66,28 @@ wss.on('connection', (ws) => {
     });
 
     targetWs.on('message', (message) => {
-        console.log("Transcription text >> ", message);
+        if (Buffer.isBuffer(message)) {
+            // Convert buffer to string
+            const transcription = message.toString('utf8');
+            console.log("Transcription text >> ", transcription);
+        } else {
+            console.log("Non-buffer message received:", message);
+        }
     });
 
-    // Handle aiscribe WebSocket errors
     targetWs.on('error', (err) => {
         console.error('Error connecting to aiscribe WebSocket:', err);
-        ws.close();  // Close Twilio WebSocket in case of aiscribe connection failure
+        ws.close();
     });
 
-    // Handle aiscribe WebSocket close
     targetWs.on('close', () => {
         console.log('aiscribe WebSocket closed');
-        ws.close();  // Close Twilio WebSocket if aiscribe WebSocket is closed
+        ws.close();
     });
 
-    // Handle FFmpeg errors on start
     ffmpegProcess.on('error', (err) => {
         console.error('Failed to start FFmpeg process:', err);
-        ws.close();  // Close WebSocket in case of FFmpeg start failure
+        ws.close();
     });
 });
 

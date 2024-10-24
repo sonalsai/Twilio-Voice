@@ -55,7 +55,7 @@ app.post('/makeCall', (req, res) => {
     start.stream({
         url: "wss://7a50-202-88-244-71.ngrok-free.app", // WebSocket URL where the audio stream will be sent
         name: 'Call Audio Stream', // Optional: Name of the stream
-        track: 'both' // Stream both inbound and outbound audio
+        track: 'both_tracks' // Stream both inbound and outbound audio
     });
 
     // Dial the phone number
