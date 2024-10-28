@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twilio Call with Deepgram Transcription</title>
+    <!-- Add Twilio Voice SDK directly from CDN -->
+    <script src="http://media.twiliocdn.com/sdk/js/client/releases/1.13.1/twilio.min.js"></script>
+</head>
+<body>
+    <h1>Browser to Mobile Call</h1>
+    <div>
+        <p id="status">Loading...</p> <!-- Status of the Twilio device -->
+    </div>
+    <div>
+        <label for="phone-number">Enter Mobile Number:</label>
+        <input type="text" id="phone-number" placeholder="+1234567890">
+    </div>
+    <button id="start-call" disabled>Start Call</button> <!-- Disabled until device is ready -->
+
+    <!-- Include your client.js script -->
+    <script src="client.js" type="module"></script>
+</body>
+</html>
