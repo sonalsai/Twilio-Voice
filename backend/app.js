@@ -13,7 +13,7 @@ app.use(bodyParser.json());
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;  // Replace with your Twilio Phone Number
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 const client = twilio(accountSid, authToken);
 
 // Endpoint to generate Twilio token
@@ -25,7 +25,7 @@ app.get('/token', (req, res) => {
 
     capability.addScope(
         new twilio.jwt.ClientCapability.OutgoingClientScope({
-            applicationSid: process.env.TWILIO_TWIML_APP_SID  // Replace with your TwiML App SID
+            applicationSid: process.env.TWILIO_TWIML_APP_SID
         })
     );
 
@@ -39,7 +39,7 @@ app.post('/getNum', (req, res) => {
     res.send({ status: "Ok" });
 });
 
-// Endpoint to handle the outgoing call
+// Endpoint to handle the outgoing call with TwiML response
 app.post('/makeCall', (req, res) => {
     const to = phoneNumber;
 
@@ -47,24 +47,24 @@ app.post('/makeCall', (req, res) => {
         return res.status(400).send('Phone number is required.');
     }
 
-    // Create a TwiML response
+    // Create a TwiML response to dial the phone number and start the stream
     const twiml = new twilio.twiml.VoiceResponse();
 
     // Start streaming audio to the WebSocket
     const start = twiml.start();
     start.stream({
-        url: "wss://ea81-2401-4900-1cdc-7b5f-7089-c2e5-6550-45df.ngrok-free.app", // WebSocket URL where the audio stream will be sent
-        name: 'Call Audio Stream', // Optional: Name of the stream
+        url: "wss://5bfc-202-88-244-71.ngrok-free.app", // WebSocket URL where the audio stream will be sent
+        name: 'Call Audio Stream',
         track: 'both_tracks' // Stream both inbound and outbound audio
     });
 
-    // Dial the phone number
+    // Dial the phone number with the specified caller ID
     twiml.dial({ callerId: twilioPhoneNumber }, to);
 
-    // Log TwiML and response to check correctness
+    // Log the generated TwiML
     console.log('Generated TwiML:', twiml.toString());
 
-    // Send the generated TwiML as the response
+    // Send the TwiML response to the client
     res.type('text/xml');
     res.send(twiml.toString());
 });

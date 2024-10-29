@@ -1,46 +1,13 @@
-// StreamAudioProcessor class definition
-// class StreamAudioProcessor {
-//     constructor(deepgramSocket) {
-//         this.deepgramSocket = deepgramSocket; // WebSocket for Deepgram API
-//     }
-
-//     async createProcessedStream(stream) {
-//         const audioContext = new AudioContext();
-//         const [audioTrack] = stream.getAudioTracks();
-//         const source = audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
-//         const processor = audioContext.createScriptProcessor(2048, 1, 1);
-
-//         processor.onaudioprocess = (audioEvent) => {
-//             const inputData = audioEvent.inputBuffer.getChannelData(0);
-//             const int16Data = new Int16Array(inputData.length);
-//             for (let i = 0; i < inputData.length; i++) {
-//                 int16Data[i] = inputData[i] * 0x7FFF;
-//             }
-//             if (this.deepgramSocket.readyState === WebSocket.OPEN) {
-//                 this.deepgramSocket.send(int16Data.buffer);
-//             }
-//         };
-
-//         source.connect(processor);
-//         processor.connect(audioContext.destination);
-//         return new MediaStream([audioTrack]);
-//     }
-
-//     async destroyProcessedStream() {
-//         if (this.deepgramSocket.readyState === WebSocket.OPEN) {
-//             this.deepgramSocket.close();
-//         }
-//     }
-// }
+// client.js
 
 // Backend URL for fetching token
-const backendURL = "https://db3f-106-222-237-223.ngrok-free.app";
+const backendURL = "https://e41c-106-222-237-223.ngrok-free.app";
+const WS_URL = "wss://424d-106-222-237-223.ngrok-free.app";
 
 let device;
 let isDeviceReady = false;
 let mediaRecorder;
-let recordedChunks = [];
-let audioContext;
+let ws;
 
 // Function to fetch Twilio Access Token from your server
 async function fetchToken() {
@@ -100,12 +67,10 @@ async function makeCall() {
         const connection = device.connect(params);
 
         connection.on('accept', (call) => {
-            console.log("Call object:", call);
-            console.log("MediaStream:", call.getLocalStream());
-
             const mediaStream = call.getLocalStream();
             if (mediaStream instanceof MediaStream) {
                 startRecording(mediaStream);
+                connectWebSocket();
             } else {
                 console.error("MediaStream is not available.");
             }
@@ -114,6 +79,7 @@ async function makeCall() {
         connection.on('disconnect', () => {
             console.log('Call disconnected. Stopping audio recording...');
             stopRecording();
+            closeWebSocket();
         });
     } catch (error) {
         console.error('Error while making the call:', error);
@@ -121,31 +87,30 @@ async function makeCall() {
 }
 
 // Function to start recording using the Web Audio API
+// Function to start recording using the Web Audio API
 function startRecording(mediaStream) {
     if (!mediaStream || !(mediaStream instanceof MediaStream)) {
         console.error("Invalid MediaStream for recording.");
         return;
     }
 
-    if (typeof MediaRecorder === 'undefined') {
-        console.error("MediaRecorder is not supported in this browser.");
-        return;
-    }
+    const options = {
+        mimeType: "audio/webm; codecs=opus",
+        audioBitsPerSecond: 16000
+    };
 
-    mediaRecorder = new MediaRecorder(mediaStream);
-    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(mediaStream, options);
 
     mediaRecorder.ondataavailable = (event) => {
+        console.log("ondataavailable event triggered"); // Check if triggered frequently
         if (event.data.size > 0) {
-            recordedChunks.push(event.data);
+            sendToWebSocket(event.data);
+            console.log("Sending audio chunk to WebSocket:", event.data);
         }
     };
 
-    mediaRecorder.onstop = () => {
-        saveRecording();
-    };
+    mediaRecorder.start(100); // Ensure timeslice is passed in ms
 
-    mediaRecorder.start();
     console.log("Recording started...");
 }
 
@@ -156,22 +121,51 @@ function stopRecording() {
     }
 }
 
-// Function to save recording as a downloadable file
-function saveRecording() {
-    const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-    recordedChunks = [];
+// Function to set up the WebSocket
+function connectWebSocket() {
+    ws = new WebSocket(WS_URL);
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = 'recorded_call.webm';
-    document.body.appendChild(a);
-    a.click();
+    ws.onopen = () => {
+        console.log('Connected to WebSocket server');
+    };
 
-    URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-    console.log("Recording saved as 'recorded_call.webm'");
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            if (data.transcript) {
+                console.log('Transcription:', data.transcript);
+            }
+        } catch (error) {
+            console.error('Error parsing message:', error);
+        }
+    };
+
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+
+    ws.onclose = () => {
+        console.log('WebSocket connection closed');
+    };
+}
+
+// Function to close the WebSocket
+function closeWebSocket() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+    }
+}
+
+// Function to send audio chunks to WebSocket
+function sendToWebSocket(chunk) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        // const blob = new Blob([chunk], { type: "audio/webm" });
+        // console.log("Sending WebM blob to WebSocket:", blob);
+        console.log("Sending >>>>>>>>>>",chunk)
+        ws.send(chunk);
+    } else {
+        console.warn("WebSocket is not open. Could not send chunk.");
+    }
 }
 
 // Initialize device and set up call button

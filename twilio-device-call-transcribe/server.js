@@ -46,7 +46,6 @@ app.post('/outgoing-call', (req, res) => {
     // const { To } = req.body;  // The number to dial
     const To = +918078206009
     const twilioPhoneNumber = "+13344215037";
-    console.log(To)
     const twiml = new twilio.twiml.VoiceResponse();
     if (To) {
         twiml.dial({ callerId: twilioPhoneNumber }, To);
