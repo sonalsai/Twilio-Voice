@@ -1,9 +1,12 @@
 let deviceReady = false;
-let ngrok = "https://515c-202-88-244-71.ngrok-free.app";
+let backendURL = "https://localhost:3000";
 let currentConnection = null; // To track the active connection
 
+let device
 // Function to set up Twilio client
 function setupTwilioDevice(token) {
+    device = Twilio.Device
+    console.log("Device >>> ", device)
     Twilio.Device.setup(token);
 
     Twilio.Device.ready(function () {
@@ -26,7 +29,7 @@ function setupTwilioDevice(token) {
 }
 
 // Fetch token from the server and initialize the Twilio client
-fetch(`${ngrok}/token`)
+fetch(`${backendURL}/token`)
     .then(response => response.json())
     .then(data => {
         setupTwilioDevice(data.token);
@@ -40,7 +43,7 @@ fetch(`${ngrok}/token`)
 function makeCall() {
     if (!deviceReady) {
         console.log('Twilio Device is not ready yet. Please wait.');
-        return;  // Don't proceed with making the call until the device is ready
+        return;
     }
 
     const phoneNumber = document.getElementById('phoneNumber').value.trim();
@@ -53,38 +56,23 @@ function makeCall() {
     document.getElementById('callButton').disabled = true;
     document.getElementById('hangupButton').disabled = false;
 
-    const params = { number: phoneNumber };
+    // Make the call using the Twilio Device
+    currentConnection = device.connect({
+        number: phoneNumber
+    });
 
-    fetch(`${ngrok}/getNum`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-    })
-        .then(response => response.json())
-        .then(data => {
-            console.log('Call initiated:', data);
-        })
-        .catch(error => {
-            console.error('Error initiating call:', error);
-            alert('Failed to initiate call.');
-            document.getElementById('callButton').disabled = false;
-            document.getElementById('hangupButton').disabled = true;
-        });
+    console.log(currentConnection)
 
-    // Establish Twilio connection
-    try {
-        currentConnection = Twilio.Device.connect(params)
+    currentConnection.on('accept', function () {
+        console.log('Call connected');
+    });
 
-        currentConnection.on('accept', function () {
-            console.log('Call connected');
-        });
-
-        currentConnection.on('disconnect', function () {
-            console.log('Call disconnected');
-        });
-    } catch (error) {
-        console.log(error)
-    }
+    currentConnection.on('disconnect', function () {
+        console.log('Call disconnected');
+        document.getElementById('callButton').disabled = false;
+        document.getElementById('hangupButton').disabled = true;
+        currentConnection = null;
+    });
 }
 
 // Function to hang up the call

@@ -3,12 +3,25 @@ const express = require('express');
 const twilio = require('twilio');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const https = require('https');
+const helmet = require('helmet');
+const fs = require('fs');
+
+
 
 const app = express();
 let phoneNumber;
 
-app.use(cors());
-app.use(bodyParser.json());
+
+const privateKey = fs.readFileSync('./certificates/key.pem', 'utf8');
+const certificate = fs.readFileSync('./certificates/cert.pem', 'utf8');
+
+app.use(helmet());
+app.use(cors({
+    origin: 'http://127.0.0.1:5500' // Allow requests from this origin
+}));
+app.use(express.json());
+// app.use(bodyParser.json());
 
 // Twilio configuration
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -42,7 +55,7 @@ app.post('/getNum', (req, res) => {
 // Endpoint to handle the outgoing call with TwiML response
 app.post('/makeCall', (req, res) => {
     const to = phoneNumber;
-
+    console.log(to)
     if (!to) {
         return res.status(400).send('Phone number is required.');
     }
@@ -69,8 +82,53 @@ app.post('/makeCall', (req, res) => {
     res.send(twiml.toString());
 });
 
+app.get('/', (req, res) => {
+    res.send('Hello World!')
+})
+
 // Server listening
-const port = 3000;
-app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
+const PORT = 3000;
+const httpsServer = https.createServer({
+    key: privateKey,
+    cert: certificate
+}, app);
+
+httpsServer.listen(PORT, () => {
+    console.log('HTTPS server listening on port 3000');
 });
+
+
+
+
+// const express = require('express');
+// const https = require('https');
+// const fs = require('fs');
+// const cors = require('cors'); // Import cors package
+
+// const app = express();
+
+// // Use CORS middleware
+// app.use(cors({
+//     origin: 'http://127.0.0.1:5500' // Allow requests from this origin
+// }));
+
+// const privateKey = fs.readFileSync('./certificates/key.pem', 'utf8');
+// const certificate = fs.readFileSync('./certificates/cert.pem', 'utf8');
+
+// const httpsServer = https.createServer({
+//     key: privateKey,
+//     cert: certificate
+// }, app);
+
+// app.get('/', (req, res) => {
+//     res.send('Hello World!')
+// });
+
+// app.get('/test', (req, res) => {
+//     const result = { status: "OK" };
+//     res.json({ result });
+// });
+
+// httpsServer.listen(3000, () => {
+//     console.log('HTTPS server listening on port 3000');
+// });
