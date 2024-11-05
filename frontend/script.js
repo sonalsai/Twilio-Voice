@@ -1,29 +1,25 @@
 let deviceReady = false;
-let backendURL = "https://localhost:3000";
-let currentConnection = null; // To track the active connection
+let backendURL = "https://twilio-voice-call-backend.onrender.com";
+let currentConnection = null;
 
-let device
 // Function to set up Twilio client
 function setupTwilioDevice(token) {
-    device = Twilio.Device
-    console.log("Device >>> ", device)
+    updateButtonState({ callButton: true, hangupButton: false });
     Twilio.Device.setup(token);
 
-    Twilio.Device.ready(function () {
+    Twilio.Device.ready(() => {
         console.log('Twilio Device ready to make calls');
-        deviceReady = true;  // Set deviceReady to true when the device is ready
-        document.getElementById('callButton').disabled = false; // Enable call button
+        deviceReady = true;
+        document.getElementById('callButton').disabled = false;
     });
 
-    Twilio.Device.error(function (error) {
-        console.log('Twilio Device error: ', error.message);
-        alert(`Device Error: ${error.message}`);
+    Twilio.Device.error(error => {
+        console.error('Twilio Device error:', error.message);
     });
 
-    Twilio.Device.disconnect(function () {
+    Twilio.Device.disconnect(() => {
         console.log('Call ended');
-        document.getElementById('hangupButton').disabled = true; // Disable hangup button
-        document.getElementById('callButton').disabled = false; // Re-enable call button
+        updateButtonState({ callButton: false, hangupButton: true });
         currentConnection = null;
     });
 }
@@ -31,9 +27,7 @@ function setupTwilioDevice(token) {
 // Fetch token from the server and initialize the Twilio client
 fetch(`${backendURL}/token`)
     .then(response => response.json())
-    .then(data => {
-        setupTwilioDevice(data.token);
-    })
+    .then(data => setupTwilioDevice(data.token))
     .catch(error => {
         console.error('Error fetching token:', error);
         alert('Failed to fetch token from the server.');
@@ -52,37 +46,42 @@ function makeCall() {
         return;
     }
 
-    // Disable call button, enable hangup button
-    document.getElementById('callButton').disabled = true;
-    document.getElementById('hangupButton').disabled = false;
+    const params = { number: phoneNumber };
 
-    // Make the call using the Twilio Device
-    currentConnection = device.connect({
-        number: phoneNumber
-    });
+    // First, send the phone number to the server to initiate the call
+    fetch(`${backendURL}/getNum`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    })
+        .then(() => {
+            currentConnection = Twilio.Device.connect(params);
+            console.log('Call connected');
+            console.log(currentConnection)
+            currentConnection.on('accept', () => console.log('Call connected'));
+            currentConnection.on('disconnect', () => console.log('Call disconnected'));
+        })
 
-    console.log(currentConnection)
-
-    currentConnection.on('accept', function () {
-        console.log('Call connected');
-    });
-
-    currentConnection.on('disconnect', function () {
-        console.log('Call disconnected');
-        document.getElementById('callButton').disabled = false;
-        document.getElementById('hangupButton').disabled = true;
-        currentConnection = null;
-    });
+        .catch(error => {
+            console.error('Error during call process:', error);
+            alert('Failed to initiate call. Please check the configuration.');
+            updateButtonState({ callButton: false, hangupButton: true });
+        });
 }
 
 // Function to hang up the call
 function hangupCall() {
     if (currentConnection) {
-        currentConnection.disconnect(); // Disconnect the call
-        document.getElementById('callButton').disabled = false; // Enable call button
-        document.getElementById('hangupButton').disabled = true; // Disable hangup button
+        currentConnection.disconnect();
+        updateButtonState({ callButton: false, hangupButton: true });
         console.log('Call disconnected by user');
     } else {
         console.log('No active call to disconnect.');
     }
+}
+
+// Utility to manage button states
+function updateButtonState({ callButton, hangupButton }) {
+    document.getElementById('callButton').disabled = callButton;
+    document.getElementById('hangupButton').disabled = hangupButton;
 }
