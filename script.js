@@ -57,7 +57,6 @@ function makeCall() {
     })
         .then(() => {
             currentConnection = Twilio.Device.connect(params);
-            console.log('Call connected');
             currentConnection.on('accept', () => {
                 console.log('Call connected');
                 updateButtonState({ callButton: true, hangupButton: false, muteButton: false });
