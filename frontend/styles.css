@@ -25,11 +25,23 @@ button {
     border: 1px solid #ccc;
 }
 
+.button-group {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
 button {
     background-color: #007bff;
     color: white;
     border: none;
     cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover:not(:disabled) {
+    background-color: #0056b3;
 }
 
 button:disabled {

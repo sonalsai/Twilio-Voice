@@ -15,9 +15,10 @@
     <h1>Twilio Voice Call (Browser to Phone)</h1>
 
     <input type="text" id="phoneNumber" placeholder="Enter phone number" />
-    <div>
+    <div class="button-group">
       <button id="callButton" onclick="makeCall()">Call</button>
       <button id="hangupButton" onclick="hangupCall()" disabled>Hang Up</button>
+      <button id="muteButton" onclick="toggleMute()" disabled>Mute</button> <!-- New Mute/Unmute button -->
     </div>
   </div>
 </body>
